@@ -133,18 +133,16 @@ def build_next_race_payload() -> dict:
 
 
 def _is_allowed_origin(origin: Optional[str]) -> bool:
-    """Local-dev-only allowlist: localhost/127.0.0.1 at any port, plus the
-    'null' origin a browser sends for a page opened via file://. Never a
-    wildcard — this reflects back only an origin that already matched the
-    allowlist, per 'do not disable browser security globally.'"""
+    """Allow local development and the deployed Vercel frontend."""
     if not origin:
         return False
+
     return (
         origin == "null"
         or origin.startswith("http://localhost")
         or origin.startswith("http://127.0.0.1")
+        or origin == "https://f1-race-predictor-8qra2k9li-kritimaheshwari403-2922s-projects.vercel.app"
     )
-
 
 class ApiHandler(BaseHTTPRequestHandler):
     """Routes: GET /api/health, GET /api/prediction/next-race. Nothing else."""
