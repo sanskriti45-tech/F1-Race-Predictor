@@ -1,277 +1,711 @@
-# F1 Race Predictor
+````markdown
+# 🏎️ F1 Race Predictor
 
-Pre-race finishing-position and win-probability prediction for Formula 1,
-built on [FastF1](https://docs.fastf1.dev/), with leakage-safe time-aware
-evaluation — plus a frontend that consumes the real backend over a local
-HTTP API. No prediction logic lives in the browser.
+> A machine-learning powered Formula 1 race prediction platform that uses historical race data, qualifying performance, driver and team form, circuit statistics, and season performance to predict upcoming race outcomes.
 
+---
+
+## 📌 Overview
+
+**F1 Race Predictor** is a full-stack Formula 1 analytics and prediction platform built around real Formula 1 data.
+
+The system combines **FastF1**, historical race results, qualifying performance, driver statistics, team performance, circuit history, and machine learning to generate predictions for upcoming races.
+
+The platform is designed to answer questions such as:
+
+- 🏆 Who is most likely to win the next race?
+- 🏁 What finishing order does the model predict?
+- 📊 What is each driver's estimated win probability?
+- 👤 How has a driver performed recently?
+- 🏎️ How is a constructor performing?
+- 📍 How has a driver or team historically performed at a circuit?
+- 📈 How well does the prediction model perform on historical races?
+
+The frontend presents these predictions through an interactive F1-themed dashboard.
+
+---
+
+## ✨ Key Features
+
+### 🏁 Race Prediction
+
+Predicts the expected finishing order for an upcoming Formula 1 race using the trained machine-learning model.
+
+Each prediction includes:
+
+- Predicted finishing position
+- Predicted rank
+- Estimated win probability
+- Driver
+- Team
+- Circuit
+- Qualifying/grid information
+
+---
+
+### 📊 Driver Performance
+
+The system tracks driver performance using historical and recent-race statistics, including:
+
+- Recent finishing-form
+- Recent qualifying-form
+- Recent points
+- Finish rate
+- Season average finish
+- Season average qualifying position
+- Season points
+- Number of races completed in the season
+
+---
+
+### 🏎️ Team / Constructor Analysis
+
+Constructor performance is incorporated into the prediction features through:
+
+- Recent team finishing form
+- Recent qualifying form
+- Recent team points
+- Historical circuit performance
+
+The frontend dynamically represents different constructors rather than being limited to a single team.
+
+---
+
+### 📍 Circuit Analysis
+
+Circuit-specific historical performance is included in the model.
+
+Features include:
+
+- Driver average finish at the circuit
+- Team average finish at the circuit
+- Driver's previous starts at the circuit
+- Team's previous starts at the circuit
+
+This allows the model to consider how a driver or constructor has historically performed at a particular track.
+
+---
+
+### 🧠 Machine Learning
+
+The current baseline prediction model uses:
+
+**HistGradientBoostingRegressor**
+
+The model predicts expected finishing position and converts those predictions into relative win probabilities.
+
+The prediction pipeline is designed to avoid using information from the future race result when constructing historical training features.
+
+---
+
+### 📈 Model Evaluation
+
+The project includes historical backtesting and evaluation metrics such as:
+
+- Mean Absolute Error (MAE)
+- Rank Correlation
+- Top-1 Agreement
+- Top-3 Agreement
+- Brier Score
+- Log Loss
+- Number of evaluated races
+
+These metrics allow the model to be evaluated against historical race outcomes.
+
+> **Important:** Win probabilities are currently generated through a heuristic probability layer and should not be interpreted as calibrated real-world probabilities until they have been validated on sufficient real historical data.
+
+---
+
+### ⚡ FastF1 Integration
+
+The project uses **FastF1** to access Formula 1 session and race information.
+
+The backend can retrieve:
+
+- Race schedules
+- Race results
+- Qualifying results
+- Driver information
+- Constructor/team information
+- Grid positions
+- Finishing positions
+- Points
+- Circuit information
+
+The project includes a live-data verification script to confirm that FastF1 can retrieve real qualifying and race data.
+
+---
+
+### 🔌 Backend API
+
+The backend exposes prediction information through a lightweight API.
+
+Available endpoints include:
+
+```text
+GET /api/health
+GET /api/prediction/next-race
+````
+
+The API provides information about:
+
+* FastF1 availability
+* Historical data availability
+* Model availability
+* Prediction generation status
+* Upcoming race
+* Predictions
+* Feature values
+* Backtesting results
+* Prediction history
+* Errors/status information
+
+---
+
+### 🎨 Interactive Frontend
+
+The frontend provides an F1-inspired dashboard containing:
+
+* Race prediction interface
+* Driver selection
+* Driver performance dashboard
+* Constructor/team views
+* Prediction table
+* Circuit information
+* Model information
+* Interactive F1-style car visualization
+
+The frontend dynamically consumes backend data rather than implementing prediction logic itself.
+
+---
+
+## 🏗️ System Architecture
+
+```text
+                    ┌──────────────────────┐
+                    │      FastF1 API      │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │   Historical Data    │
+                    │  Race + Qualifying   │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │ Feature Engineering  │
+                    │ Driver / Team / Track│
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │ Machine Learning     │
+                    │ HistGradientBoosting │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │ Race Predictions     │
+                    │ Rank / Finish / Win %│
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │       REST API       │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │   Interactive Web UI  │
+                    └──────────────────────┘
 ```
+
+---
+
+## 🧮 Feature Engineering
+
+The model uses historical features generated before the target race.
+
+### Driver Features
+
+```text
+driver_form_3
+driver_form_5
+driver_quali_form_3
+driver_quali_form_5
+driver_points_3
+driver_points_5
+driver_finish_rate_3
+driver_finish_rate_5
+```
+
+### Team Features
+
+```text
+team_form_3
+team_form_5
+team_quali_form_3
+team_quali_form_5
+team_points_3
+team_points_5
+```
+
+### Circuit Features
+
+```text
+circuit_driver_avg_finish
+circuit_team_avg_finish
+circuit_driver_prior_starts
+circuit_team_prior_starts
+```
+
+### Season Features
+
+```text
+season_avg_finish
+season_avg_quali
+season_points
+season_races_so_far
+```
+
+### Race / Qualifying Features
+
+```text
+qualifying_position
+grid_position
+```
+
+The model also tracks:
+
+```text
+driver
+team
+circuit
+```
+
+---
+
+## 📂 Project Structure
+
+```text
 F1-Race-Predictor/
-├── backend/     Python: FastF1 ingestion, features, model, API server
-└── frontend/    Static HTML/CSS/JS: intro video, dashboard, car visuals
+│
+├── frontend/
+│   ├── index.html
+│   └── assets/
+│       └── f1_clean.mp4
+│
+├── backend/
+│   │
+│   ├── src/
+│   │   ├── app/
+│   │   │   └── api.py
+│   │   │
+│   │   ├── data/
+│   │   │   ├── fastf1_client.py
+│   │   │   └── loaders.py
+│   │   │
+│   │   ├── features/
+│   │   │   └── dataset.py
+│   │   │
+│   │   └── models/
+│   │       ├── baseline.py
+│   │       └── predict.py
+│   │
+│   ├── scripts/
+│   │   ├── build_dataset_and_train.py
+│   │   ├── run_backtest.py
+│   │   ├── serve_api.py
+│   │   └── verify_live_fetch.py
+│   │
+│   ├── tests/
+│   │
+│   ├── data/
+│   │   ├── raw/
+│   │   ├── processed/
+│   │   └── ...
+│   │
+│   ├── models/
+│   │
+│   ├── pyproject.toml
+│   └── README.md
+│
+└── README.md
 ```
 
-## 1. Architecture
+---
 
+## 🛠️ Technology Stack
+
+### Backend
+
+* Python
+* FastF1
+* Pandas
+* NumPy
+* Scikit-learn
+* Joblib
+
+### Machine Learning
+
+* HistGradientBoostingRegressor
+* Time-aware feature generation
+* Historical backtesting
+* Ranking evaluation
+* Probability evaluation
+
+### Frontend
+
+* HTML5
+* CSS3
+* JavaScript
+* SVG
+* REST API integration
+
+### Data
+
+* Formula 1 race data
+* Formula 1 qualifying data
+* Driver statistics
+* Constructor/team statistics
+* Circuit statistics
+
+---
+
+# 🚀 Getting Started
+
+## 1. Clone the Repository
+
+```bash
+git clone https://github.com/YOUR_USERNAME/F1-Race-Predictor.git
+cd F1-Race-Predictor
 ```
-FastF1 → raw session data → normalization/validation → feature builder
-  → time-aware training dataset → gradient-boosting model
-  → evaluation/calibration → saved model
-  → upcoming-race feature builder → predict_upcoming_race()
-          │
-          ▼
-  backend/src/app/api.py  (stdlib http.server, GET /api/prediction/next-race)
-          │  JSON over HTTP, localhost only
-          ▼
-  frontend/index.html  →  fetch()  →  normalizePredictionData()  →  UI
-```
 
-The API layer (`backend/src/app/api.py`) contains **no prediction logic**.
-Every field in its response comes from calling the real backend functions
-directly (`get_upcoming_race`, `load_session`, `predict_upcoming_race`,
-`load_model_bundle`) or reading files the backend pipeline already
-produces (`races.csv`, the saved model, backtest reports). If something
-isn't available yet, the response says so honestly — it never fabricates
-a value. The frontend mirrors this: its own `normalizePredictionData()`
-only reshapes what the API returned; it never computes a prediction.
+---
 
-## 2. Backend setup
+## 2. Create a Python Virtual Environment
 
-**Python version**: 3.12.3 (what this project was built and tested
-against — `requires-python = ">=3.10"` in `pyproject.toml`, but only
-3.12.3 has actually been run).
+Navigate to the backend:
 
 ```bash
 cd backend
-python -m venv .venv && source .venv/bin/activate
+```
+
+Create the virtual environment:
+
+```bash
+python -m venv .venv
+```
+
+Activate it on Windows:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+---
+
+## 3. Install Dependencies
+
+```bash
+python -m pip install --upgrade pip
 pip install -e ".[dev]"
-cp .env.example .env
 ```
 
-Dependencies (`pyproject.toml`): `fastf1`, `pandas`, `numpy`,
-`scikit-learn`, `pyyaml`, `python-dotenv`, plus `pytest`/`streamlit` in
-the `dev` extra. **No new dependency was added for the API server** — it
-uses Python's standard library (`http.server`) only, per "the thinnest
-possible API/data-serving layer."
+---
 
-### FastF1 network access — important, tested directly
+# 🔍 Verify FastF1 Live Data
 
-The sandbox this project was built in has an unusual, specific network
-profile, confirmed by direct testing, not assumed:
-
-- `fastf1.get_event_schedule()` (the calendar/next-race lookup) **works**
-  — reaches real data.
-- `fastf1.get_session(...).load()` (actual session results, qualifying
-  times, lap data — via Ergast/live-timing) **does not** — it returns
-  without raising, but with zero rows, which the existing defensive
-  loader code (`src/data/fastf1_client.py`) already catches and reports
-  honestly (`ok=False`) rather than crashing.
-
-This means in *this* environment, `GET /api/prediction/next-race` can
-correctly identify the next race and its cutoff, but cannot produce a
-full prediction (it honestly reports `predictionGenerated: false` with
-an explanation). **Your own machine may have full access to both** —
-this is a property of the sandbox, not a known limitation of the code.
-Run `python scripts/verify_live_fetch.py` to check your own environment.
-
-### Generate real data (needs FastF1 network access)
+Before building the dataset, verify that FastF1 can retrieve real Formula 1 data:
 
 ```bash
-cd backend
+python scripts/verify_live_fetch.py
+```
+
+The verification checks that real:
+
+* Race data
+* Qualifying data
+* Drivers
+* Teams
+* Positions
+
+can be retrieved successfully.
+
+A successful verification should return non-empty session data.
+
+---
+
+# 🧠 Build the Training Dataset
+
+After verifying FastF1, build the historical dataset and train the baseline model.
+
+For example:
+
+```bash
 python scripts/build_dataset_and_train.py --seasons 2022 2023
+```
+
+You can provide additional seasons as required.
+
+The pipeline:
+
+```text
+FastF1
+   ↓
+Race + Qualifying Data
+   ↓
+Data Normalization
+   ↓
+Feature Engineering
+   ↓
+Training Dataset
+   ↓
+Model Training
+   ↓
+Saved Model
+```
+
+---
+
+# 📊 Run Backtesting
+
+Evaluate the trained model using historical races:
+
+```bash
 python scripts/run_backtest.py
 ```
 
-These populate `data/processed/races.csv`, `models/baseline_gbm.joblib`,
-and `reports/backtest_*`. **None of these files are included in this
-ZIP** — the project ships clean, and the API honestly reports
-`historicalDataLoaded: false` / `modelLoaded: false` until you run this.
+The backtest reports metrics including:
 
-### Start the API server
+```text
+MAE
+Rank Correlation
+Top-1 Agreement
+Top-3 Agreement
+Brier Score
+Log Loss
+```
+
+---
+
+# 🔌 Start the Backend API
+
+Start the prediction API:
 
 ```bash
-cd backend
 python scripts/serve_api.py --port 8787
 ```
 
-`fastf1` takes **5–10 seconds to import** (measured directly — it's not
-a trivial library) — the server needs that long to start listening. Give
-it a moment before the frontend's first request.
+The API will be available at:
 
-Endpoints:
-- `GET /api/health` → `{"status": "ok"}`
-- `GET /api/prediction/next-race` → the full payload described in
-  section 4 below
+```text
+http://localhost:8787
+```
 
-CORS is restricted to `http://localhost:*`, `http://127.0.0.1:*`, and the
-`null` origin a browser sends for a page opened via `file://` — never a
-wildcard. This is a local-dev-only server; don't expose it publicly.
+Health check:
 
-## 3. Frontend setup
+```text
+http://localhost:8787/api/health
+```
+
+Upcoming-race prediction:
+
+```text
+http://localhost:8787/api/prediction/next-race
+```
+
+---
+
+# 🌐 Start the Frontend
+
+Open another terminal.
+
+Navigate to the frontend:
 
 ```bash
 cd frontend
+```
+
+Start a local web server:
+
+```bash
 python -m http.server 5500
 ```
 
-Then open `http://localhost:5500/index.html`. (Opening `index.html`
-directly via `file://` mostly works too, but some browsers restrict
-`fetch()` from `file://` pages regardless of CORS — serving it locally is
-more reliable.)
+Then open:
 
-If your API server runs on a different port/host, edit the one line near
-the top of `frontend/index.html`'s `<script>`:
-
-```js
-var API_BASE_URL = 'http://localhost:8787';
+```text
+http://localhost:5500
 ```
 
-## 4. API / data contract
+The frontend communicates with the backend API running on port `8787`.
 
-`GET /api/prediction/next-race` returns:
+---
 
-```jsonc
-{
-  "dataFreshness": "2026-...",       // bundle.saved_at, or null
-  "modelVersion": "baseline_gbm",    // or null if no model loaded
-  "fastf1Available": true,           // real check, this request
-  "historicalDataLoaded": true,      // races.csv exists
-  "modelLoaded": true,               // model bundle exists
-  "predictionGenerated": false,      // did a full prediction actually get produced
-  "nextRace": { "name", "circuit", "date", "cutoffNote", "statusNote" } | null,
-  "predictions": [ {                 // one row per driver — empty [] if not available
-    "predicted_rank", "driver", "team", "circuit",
-    "qualifying_position", "grid_position",
-    "driver_form_3", "driver_form_5", "driver_quali_form_3", "driver_quali_form_5",
-    "driver_points_3", "driver_points_5", "driver_finish_rate_3", "driver_finish_rate_5",
-    "team_form_3", "team_form_5", "team_quali_form_3", "team_quali_form_5",
-    "team_points_3", "team_points_5",
-    "circuit_driver_avg_finish", "circuit_driver_prior_starts",
-    "circuit_team_avg_finish", "circuit_team_prior_starts",
-    "season_avg_finish", "season_avg_quali", "season_points", "season_races_so_far",
-    "pred_finish", "win_prob"
-  } ],
-  "featureValues": [ {"feature": "...", "value": ...} ],  // real saved feature importance
-  "backtest": { "overall": {"mae", "rank_correlation", "top1_agreement",
-                             "brier_score_win", "log_loss_win", "n_races"}, ... } | null,
-  "history": [ {"race_id", "driver", "team", "target_finish", "pred_finish", "win_prob"} ],
-  "error": "human-readable reason, or null"
-}
+# 🔄 Prediction Workflow
+
+When the application is used for an upcoming race:
+
+```text
+Upcoming Race
+      ↓
+FastF1 Schedule
+      ↓
+Qualifying Completed?
+      ↓
+Historical Driver/Team/Circuit Features
+      ↓
+ML Model
+      ↓
+Predicted Finishing Positions
+      ↓
+Win Probability Layer
+      ↓
+REST API
+      ↓
+Interactive Dashboard
 ```
 
-This is the **real, actual schema** the backend produces (verified
-directly from `src/features/dataset.py`, `src/models/predict.py`,
-`src/evaluation/backtest.py` — not assumed from a spec).
+The backend remains the source of truth for prediction values.
 
-## 5. How next-race prediction is generated
+The frontend does **not** independently calculate race predictions.
 
-1. `GET /api/prediction/next-race` calls `get_upcoming_race()` → the next
-   calendar event + whether qualifying has happened.
-2. If qualifying is done, it loads that session's real results via
-   `load_session(season, round, "Q")`.
-3. If that succeeds, it calls `predict_upcoming_race()` — the same
-   function `backend/src/app/cli.py` uses — with the real races table and
-   the real saved model. This builds every feature via
-   `races_before(season, round)`, strictly excluding the target race and
-   anything after it (leakage prevention, unchanged).
-4. The result is serialized straight to JSON. No step here recomputes or
-   adjusts anything in JavaScript.
+---
 
-## 6. Driver/team/car synchronization
+# 🛡️ Data Integrity
 
-- Clicking a row in the Race Prediction table, or choosing a driver in
-  the Drivers tab dropdown, calls `selectDriver(name)` — the single
-  source of truth for "who's selected."
-- `selectDriver()` calls `renderDriverInto(name, ids)` **twice**, once
-  per mount point (Drivers tab, Prediction tab dashboard) — same
-  function, same data, two places it's drawn — and keeps the dropdown
-  and the highlighted table row in sync too.
-- The car itself comes from `F1CarDisplay(team, driverCode)`:
-  `resolveTeamId()` fuzzy-matches the backend's real team string (e.g.
-  "Red Bull Racing") against `TEAM_REGISTRY`; an unmatched team renders
-  a neutral grey car **with its own real name**, never another team's
-  identity. The car is an original SVG silhouette (front wing, nose,
-  halo, sidepods, rear wing, wheels) — not a photo, not any real team's
-  actual livery, since no licensed car imagery is available here.
+The feature-generation pipeline is designed around a prediction cutoff.
 
-## 7. How prediction cutoff works
+Historical features are generated from information available before the race being predicted.
 
-A race's features are only ever built from `races_before(season, round)`
-— every race strictly before the target, by `(season, round)` ordering.
-Qualifying position and grid position ARE used (known before a race
-starts); finishing position, points, and anything from the race itself
-or later are never used for that race's own prediction. This logic is
-unchanged from the original backend and is covered by
-`tests/test_leakage.py`, including tests that deliberately inject a
-sentinel value into a future race and confirm it never appears in an
-earlier prediction.
+This is important because using the target race's final result to generate its own prediction would introduce **data leakage**.
 
-## 8. Running tests
+The project therefore separates:
+
+```text
+Historical information
+        ↓
+Features
+        ↓
+Prediction
+        ↓
+Actual race result
+        ↓
+Evaluation
+```
+
+rather than allowing future race results to influence the prediction.
+
+---
+
+# ⚠️ Important Notes
+
+### Real Data
+
+The repository does not rely on fabricated race results.
+
+The project is designed to retrieve Formula 1 data through FastF1 when the user runs the data pipeline.
+
+The repository may therefore contain empty data/model directories in a fresh clone until the training pipeline is executed.
+
+---
+
+### Win Probability
+
+The current win probability calculation is a heuristic transformation of predicted finishing positions.
+
+It should therefore be treated as an **estimated relative probability**, not as a statistically calibrated probability, until it has been properly calibrated and validated on real historical data.
+
+---
+
+### FastF1 Connectivity
+
+FastF1 requires network access to retrieve session data.
+
+If FastF1 cannot access the required Formula 1 data source in a particular environment, the live-data verification step may fail even though the project code itself is correctly configured.
+
+---
+
+# 🧪 Testing
+
+The project includes automated tests covering core data, feature, model, API, and frontend behavior.
+
+Run the backend test suite with:
 
 ```bash
-cd backend
-pytest tests/ -v
+pytest -v
 ```
 
-**111 tests, all passing** (105 from the original backend phases + 6 new
-in `tests/test_api.py`). The new API tests include a direct cross-check:
-calling `predict_upcoming_race()` directly and comparing its output
-field-by-field against what the HTTP API returns for the same inputs —
-proving the API layer adds zero prediction logic of its own.
+For live-data verification:
 
-## 9. What was actually tested before packaging (not just "it returns 200")
+```bash
+python scripts/verify_live_fetch.py
+```
 
-- **Scenario A — backend not running**: frontend correctly shows "BACKEND
-  CONNECTION ERROR" with a Retry button; no fake data; zero JS errors.
-- **Scenario B — real server, real network conditions**: real schedule
-  data flowed through (a real upcoming Grand Prix + circuit + cutoff
-  timestamp), real backtest metrics from a real model run appeared in
-  the History tab, `predictionGenerated` honestly showed `false` with a
-  clear reason (session data unreachable in this sandbox) — no banner
-  error, since the server itself was reachable; this is the Step
-  14-vs-15 distinction (connection error vs. honest empty data) working
-  as designed.
-- **Scenario C — full real pipeline, network boundary mocked**: a real
-  trained model's real predictions for four real-named teams (Red Bull
-  Racing, Scuderia Ferrari, Mercedes-AMG Petronas, McLaren) were served
-  over real HTTP and consumed by a real browser. Clicking each of the 4
-  driver rows correctly swapped the car's colors and every statistic to
-  that driver's real values; `performance.getEntriesByType('navigation')`
-  was checked before and after — count unchanged, proving no page reload
-  across any of the clicks. Zero JS console errors throughout.
+---
 
-All three scenarios used Playwright driving a real Chromium instance
-against a real running server — not a simulated or mocked frontend.
+# 📈 Future Improvements
 
-See `backend/DEVELOPMENT_HISTORY.md` for the detailed, phase-by-phase
-record of how the backend was built and tested (data ingestion, feature
-engineering, the baseline model, backtesting, the CLI, and the Streamlit
-dashboard) — useful if you want the reasoning behind a specific design
-choice, not just the end state.
+Potential future improvements include:
 
-## 10. Known limitations
+* Calibrated win probabilities
+* More advanced ranking models
+* Additional machine-learning algorithms
+* Weather features
+* Tyre strategy information
+* Pit-stop performance
+* Safety-car probability
+* Track-specific characteristics
+* Driver/team upgrades
+* Sprint-weekend handling improvements
+* Automated model retraining
+* Live race updates
+* Historical prediction-vs-actual visualization
+* More detailed model explainability
+* Cloud deployment
+* Automated data refresh
 
-- **No real production data ships in this ZIP.** You must run
-  `scripts/build_dataset_and_train.py` yourself with real FastF1 network
-  access before the API has anything to serve.
-- **Session/qualifying data was unreachable in the sandbox that built
-  this project** (see section 2) — `predictionGenerated` may honestly
-  stay `false` depending on your own network environment. This is a
-  property of network access, not a code defect; `get_upcoming_race()`
-  working while `load_session()` doesn't is real, confirmed behavior.
-- **The car visuals are original schematic illustrations**, not licensed
-  team car photography — none was available to use. `TEAM_REGISTRY`
-  currently covers 10 common constructors by name-matching; anything
-  else gets the honest neutral fallback with its real name.
-- **CORS is wide open to any localhost/127.0.0.1 origin** for development
-  convenience. Do not deploy `serve_api.py` outside localhost as-is.
-- **The frontend has no build step** — it's one HTML file with inline
-  CSS/JS, by design, matching how it was developed throughout this
-  project. There's no bundler, no `package.json`, nothing to `npm
-  install`.
-- The baseline model is a `HistGradientBoostingRegressor` with a single,
-  unoptimized configuration (Section 8.1 of the original project guide:
-  "start simple before tuning"). Its real-world accuracy has only ever
-  been evaluated on synthetic data in this environment — treat any
-  number you see until you've run the real pipeline against real
+---
+
+# 🏁 Project Goals
+
+The long-term goal of **F1 Race Predictor** is to create a reliable, data-driven Formula 1 prediction platform that combines:
+
+> **Real F1 Data + Feature Engineering + Machine Learning + Interactive Visualization**
+
+to provide an accessible way to explore and understand Formula 1 race predictions.
+
+---
+
+## 👩‍💻 Author
+
+**Sanskriti Maheshwari**
+
+Built as a machine-learning and data-driven Formula 1 analytics project.
+
+---
+
+## ⭐ If You Like This Project
+
+If you find the project interesting, consider giving the repository a ⭐ on GitHub.
+
+Contributions, ideas, and improvements are welcome.
+
+---
+
+## 📄 License
+
+Add your preferred open-source license here, such as MIT, before publishing the repository.
+
+```
+
+### One important recommendation
+
+For your GitHub repository, I would **not** put phrases like “98% accurate,” “predicts the winner accurately,” or “real-time accurate predictions” in the README unless you have actually run the model on real historical data and have the corresponding evaluation results.
+
+Your project is much more professional if the README clearly separates **what the system does** from **what has actually been validated**.
+```
+real
   historical seasons as unverified.
