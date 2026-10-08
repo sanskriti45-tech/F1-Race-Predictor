@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>F1 Race Predictor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  :root{
+    --bg:#08090c; --panel:#111319cc; --line:#ffffff22; --red:#e10600;
+    --text:#f2f2f4; --muted:#9a9ca6;
+    box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%; margin:0;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+    overflow-x:hidden;
+  }
+
+  /* ---------- INTRO ---------- */
+  #intro{
+    position:fixed; inset:0; z-index:50; background:#000;
+    transition:opacity .8s ease, transform .8s ease;
+  }
+  #intro.fade-out{opacity:0; transform:scale(1.06); pointer-events:none;}
+  .intro-video{
+    position:absolute; inset:0; width:100%; height:100%;
+    object-fit:cover; object-position:center;
+    pointer-events:none; /* video is decorative only; never intercepts clicks/hover */
+  }
+  /* Belt-and-suspenders: hide any native control chrome a browser might
+     render on the video element, even without the controls attribute
+     present (e.g. Chrome/Edge hover overlays, Safari's default controls). */
+  .intro-video::-webkit-media-controls,
+  .intro-video::-webkit-media-controls-panel,
+  .intro-video::-webkit-media-controls-play-button,
+  .intro-video::-webkit-media-controls-start-playback-button{
+    display:none !important; -webkit-appearance:none;
+  }
+  .intro-scrim{
+    position:absolute; inset:0;
+    background:linear-gradient(180deg, #0008 0%, #0000 30%, #0000 60%, #000a 100%);
+  }
+  .intro-overlay{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    flex-direction:column; gap:18px; padding:24px; text-align:center;
+  }
+  .intro-kicker{
+    letter-spacing:.35em; font-size:12px; color:var(--muted); text-transform:uppercase;
+  }
+  #get-started{
+    font:inherit; cursor:pointer; color:var(--text);
+    background:#ffffff14; backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    border:1px solid #ffffff55; border-radius:2px;
+    padding:16px 42px; letter-spacing:.25em; font-size:14px; font-weight:600;
+    transition:background .25s ease, transform .25s ease, border-color .25s ease;
+  }
+  #get-started:hover{background:#ffffff26; transform:translateY(-2px); border-color:#fff;}
+  #get-started:active{transform:translateY(0);}
+  #get-started:focus-visible{outline:2px solid var(--red); outline-offset:4px;}
+
+  /* ---------- APP ---------- */
+  #app{opacity:0; transition:opacity .7s ease .1s;}
+  #app.visible{opacity:1;}
+  #app.hidden-init{display:none;}
+
+  .wrap{max-width:1080px; margin:0 auto; padding:28px 20px 60px;}
+  .topbar{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;}
+  .brand{font-weight:800; letter-spacing:.08em; font-size:20px;}
+  .brand span{color:var(--red);}
+  .status-pill{
+    font-size:12px; color:var(--muted); border:1px solid var(--line); border-radius:999px;
+    padding:6px 14px; white-space:nowrap;
+  }
+  .disclaimer{
+    margin:18px 0 26px; padding:12px 16px; border:1px solid #e1060055; background:#e1060014;
+    border-radius:6px; font-size:13px; color:#ffb3ae;
+  }
+  .conn-banner{
+    margin:-10px 0 20px; padding:12px 16px; border-radius:6px; font-size:13px;
+    border:1px solid var(--line); background:#ffffff08; color:var(--muted);
+  }
+  .conn-banner.error{border-color:#e1060055; background:#e1060014; color:#ffb3ae;}
+  .conn-banner button{
+    margin-top:8px; font:inherit; cursor:pointer; background:var(--red); color:#fff; border:none;
+    padding:7px 18px; border-radius:3px; font-size:11.5px; font-weight:700; letter-spacing:.1em;
+  }
+  .conn-banner button:hover{filter:brightness(1.15);}
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:20px 22px; margin-bottom:20px;
+  }
+  h2{font-size:13px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); margin:0 0 14px;}
+  .race-head{display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px; align-items:baseline;}
+  .race-head h1{margin:0; font-size:26px;}
+  .cutoff{font-size:12.5px; color:var(--muted);}
+
+  table{width:100%; border-collapse:collapse; font-size:14px;}
+  th{text-align:left; color:var(--muted); font-weight:600; font-size:11px; letter-spacing:.08em;
+     text-transform:uppercase; padding:8px 10px; border-bottom:1px solid var(--line);}
+  td{padding:10px 10px; border-bottom:1px solid #ffffff10;}
+  tr:last-child td{border-bottom:none;}
+  .rank{color:var(--red); font-weight:800; width:28px;}
+  .prob-bar{height:6px; border-radius:3px; background:#ffffff14; overflow:hidden; margin-top:4px;}
+  .prob-fill{height:100%; background:var(--red);}
+
+  .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+  .stat{background:#ffffff08; border:1px solid var(--line); border-radius:8px; padding:14px 16px;}
+  .stat .n{font-size:24px; font-weight:800;}
+  .stat .l{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em;}
+
+  .factor{display:flex; align-items:center; gap:10px; font-size:13.5px; margin-bottom:10px;}
+  .factor .bar{flex:1; height:6px; background:#ffffff14; border-radius:3px; overflow:hidden;}
+  .factor .bar i{display:block; height:100%; background:linear-gradient(90deg,#e10600,#ff6a5e);}
+  .factor .w{width:150px; color:var(--muted); flex:0 0 auto;}
+
+  footer{color:var(--muted); font-size:12px; text-align:center; padding:20px 0 10px;}
+
+  /* ---- Nav tabs ---- */
+  .tabs{display:flex; gap:4px; overflow-x:auto; margin:18px 0 0; border-bottom:1px solid var(--line); -webkit-overflow-scrolling:touch;}
+  .tab{
+    font:inherit; background:none; border:none; color:var(--muted); cursor:pointer;
+    padding:10px 14px; font-size:12px; letter-spacing:.1em; white-space:nowrap;
+    border-bottom:2px solid transparent;
+  }
+  .tab:hover{color:var(--text);}
+  .tab.active{color:var(--text); border-bottom-color:var(--red);}
+  .tab:focus-visible{outline:2px solid var(--red); outline-offset:-2px;}
+
+  .panel{display:none;}
+  .panel.active{display:block;}
+
+  /* ---- Hero (Image 1-inspired: large race-status hero area) ---- */
+  .hero{
+    position:relative; padding:38px 28px; margin-bottom:20px; border-radius:12px;
+    background:
+      linear-gradient(120deg, #1a0505 0%, #0c0d10 55%, #08090c 100%);
+    border:1px solid var(--line); overflow:hidden;
+  }
+  .hero::after{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    background:repeating-linear-gradient(115deg, #ffffff05 0 2px, transparent 2px 26px);
+  }
+  .hero-kicker{letter-spacing:.3em; font-size:11px; color:var(--red); font-weight:700; margin-bottom:10px;}
+  .hero h1{margin:0 0 8px; font-size:34px;}
+  .hero-meta{color:var(--muted); font-size:13.5px; margin-bottom:14px;}
+  .hero .cutoff{margin-bottom:4px;}
+  .btn-primary{
+    margin-top:16px; font:inherit; cursor:pointer; background:var(--red); color:#fff; border:none;
+    padding:12px 28px; border-radius:3px; font-size:12.5px; font-weight:700; letter-spacing:.15em;
+    transition:filter .2s ease, transform .2s ease;
+  }
+  .btn-primary:hover{filter:brightness(1.15); transform:translateY(-1px);}
+  .btn-primary:focus-visible{outline:2px solid #fff; outline-offset:3px;}
+
+  /* ---- Prediction podium (P1/P2/P3 highlight) ---- */
+  .podium{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+  .podium .p-card{
+    background:#ffffff08; border:1px solid var(--line); border-radius:8px; padding:16px; text-align:center;
+  }
+  .podium .p-pos{color:var(--red); font-weight:800; font-size:13px; letter-spacing:.1em;}
+  .podium .p-driver{font-size:19px; font-weight:800; margin:6px 0 2px;}
+  .podium .p-team{color:var(--muted); font-size:12.5px; margin-bottom:8px;}
+  .podium .p-prob{font-size:22px; font-weight:800;}
+  .podium .p-prob-l{font-size:10.5px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase;}
+
+  .table-scroll{overflow-x:auto;}
+
+  /* ---- Selectors ---- */
+  .selector-row{display:flex; align-items:center; gap:12px; margin-bottom:18px; flex-wrap:wrap;}
+  .selector-row label{font-size:11px; letter-spacing:.15em; color:var(--muted);}
+  .selector-row select{
+    background:var(--panel); color:var(--text); border:1px solid var(--line); border-radius:6px;
+    padding:9px 14px; font:inherit; font-size:13.5px; min-width:220px;
+  }
+  .selector-row select:focus-visible{outline:2px solid var(--red);}
+
+  .detail-grid{display:grid; grid-template-columns:0.85fr 1.5fr 0.85fr; gap:16px; align-items:stretch;}
+  .car-card{
+    display:flex; align-items:center; justify-content:center; padding:24px 16px;
+    background:radial-gradient(ellipse at 50% 65%, #ffffff0a 0%, transparent 70%), var(--panel);
+    min-height:260px;
+  }
+  @media (max-width:900px){ .detail-grid{grid-template-columns:1fr;} .car-card{order:-1;} }
+
+  /* ---- Dynamic F1 car component (original schematic, not a photo) ---- */
+  .car-wrap{text-align:center; width:100%;}
+  .car-caption{font-size:10.5px; color:var(--muted); letter-spacing:.06em; margin-top:10px;}
+  .car-team-name{font-size:15px; font-weight:800; margin-top:6px;}
+
+  .kv{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid #ffffff10; font-size:13.5px;}
+  .kv:last-child{border-bottom:none;}
+  .kv .k{color:var(--muted);}
+
+  .section-h2{font-size:13px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); margin:28px 0 14px;}
+
+  /* ---- Clickable prediction rows -> Selected Driver Dashboard ---- */
+  .pred-table tbody tr{cursor:pointer; transition:background .15s ease;}
+  .pred-table tbody tr:hover{background:#ffffff08;}
+  .pred-table tbody tr.selected-row{background:#e1060014; box-shadow:inset 3px 0 0 var(--red);}
+  .pred-table tbody tr:focus-visible{outline:2px solid var(--red); outline-offset:-2px;}
+  .pred-table .sel-indicator{width:18px; color:var(--red); font-weight:800;}
+
+  .empty{
+    color:var(--muted); font-size:13px; padding:20px; text-align:center;
+    border:1px dashed var(--line); border-radius:8px; line-height:1.6;
+  }
+  .status-row{display:flex; align-items:center; gap:10px; padding:7px 0; font-size:13.5px;}
+  .status-dot{width:9px; height:9px; border-radius:50%; background:#666; flex:0 0 auto;}
+  .status-dot.ok{background:#3ecf6e;}
+  .status-dot.fail{background:var(--red);}
+
+  @media (max-width:750px){
+    .hero-grid{grid-template-columns:1fr;}
+  }
+
+  @media (max-width:600px){
+    .grid3{grid-template-columns:1fr;}
+    #get-started{padding:14px 30px; font-size:13px;}
+    table{font-size:12.5px;}
+    th:nth-child(4), td:nth-child(4){display:none;} /* hide quali col on tiny screens */
+  }
+</style>
+</head>
+<body>
+
+  <div id="intro">
+    <video
+      class="intro-video"
+      autoplay
+      muted
+      loop
+      playsinline
+      disablePictureInPicture
+      disableRemotePlayback
+      controlsList="nodownload nofullscreen noremoteplayback"
+      aria-hidden="true"
+    >
+      <source src="assets/f1_clean.mp4" type="video/mp4">
+    </video>
+    <div class="intro-scrim"></div>
+    <div class="intro-overlay">
+      <div class="intro-kicker">F1 Race Predictor</div>
+      <button id="get-started" aria-label="Get started — view F1 race predictions">GET STARTED</button>
+    </div>
+  </div>
+
+  <div id="app" class="hidden-init">
+    <div class="wrap">
+      <div class="topbar">
+        <div class="brand">RACE<span>PREDICT</span></div>
+        <div class="status-pill" id="status-pill">—</div>
+      </div>
+
+      <nav class="tabs" id="tabs">
+        <button class="tab active" data-tab="home">HOME</button>
+        <button class="tab" data-tab="predict">RACE PREDICTION</button>
+        <button class="tab" data-tab="drivers">DRIVERS</button>
+        <button class="tab" data-tab="teams">TEAMS</button>
+        <button class="tab" data-tab="circuits">CIRCUITS</button>
+        <button class="tab" data-tab="history">HISTORY</button>
+        <button class="tab" data-tab="model">MODEL</button>
+      </nav>
+
+      <div class="disclaimer">⚠ Predictions are uncertain estimates, not guaranteed outcomes. Generated using only data available before the prediction cutoff.</div>
+      <div id="conn-banner" class="conn-banner" hidden></div>
+
+      <!-- HOME -->
+      <section class="panel active" data-panel="home">
+        <div class="hero">
+          <div class="hero-kicker">NEXT RACE</div>
+          <h1 id="race-name">—</h1>
+          <div class="hero-meta">
+            <span id="race-circuit">—</span> · <span id="race-date">—</span>
+          </div>
+          <div class="cutoff" id="cutoff-note">—</div>
+          <div class="cutoff" id="race-status-note">—</div>
+          <button class="btn-primary" id="view-prediction-btn">VIEW PREDICTION</button>
+        </div>
+        <div class="card">
+          <h2>Data Status</h2>
+          <div id="data-status"></div>
+        </div>
+      </section>
+
+      <!-- RACE PREDICTION -->
+      <section class="panel" data-panel="predict">
+        <div class="card">
+          <h2>Race Prediction</h2>
+          <div class="podium" id="podium-highlight"></div>
+        </div>
+        <div class="card">
+          <h2>Predicted Race Order</h2>
+          <div class="table-scroll">
+            <table class="pred-table">
+              <thead><tr><th></th><th>#</th><th>Driver</th><th>Team</th><th>Quali</th><th>Recent form</th><th>Circuit</th><th>P1 prob.</th></tr></thead>
+              <tbody id="prediction-grid-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="predict-driver-dashboard">
+          <h2 class="section-h2">Selected Driver Dashboard</h2>
+          <div class="detail-grid">
+            <div class="card"><div id="predict-driver-info"></div></div>
+            <div class="card car-card"><div id="predict-driver-car"></div></div>
+            <div class="card"><div id="predict-driver-perf"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Why The Model Predicts This</h2>
+          <div id="factors-body"></div>
+        </div>
+      </section>
+
+      <!-- DRIVERS -->
+      <section class="panel" data-panel="drivers">
+        <div class="selector-row">
+          <label for="driver-select">SELECT DRIVER</label>
+          <select id="driver-select"><option>—</option></select>
+        </div>
+        <div class="detail-grid">
+          <div class="card"><h2>Driver</h2><div id="driver-info"></div></div>
+          <div class="card car-card"><div id="driver-car"></div></div>
+          <div class="card"><h2>Performance</h2><div id="driver-perf"></div></div>
+        </div>
+      </section>
+
+      <!-- TEAMS -->
+      <section class="panel" data-panel="teams">
+        <div class="selector-row">
+          <label for="team-select">SELECT TEAM</label>
+          <select id="team-select"><option>—</option></select>
+        </div>
+        <div class="detail-grid">
+          <div class="card"><h2>Team</h2><div id="team-info"></div></div>
+          <div class="card car-card"><div id="team-car"></div></div>
+          <div class="card"><h2>Performance</h2><div id="team-perf"></div></div>
+        </div>
+      </section>
+
+      <!-- CIRCUITS -->
+      <section class="panel" data-panel="circuits">
+        <div class="card"><h2>Circuit Performance</h2><div id="circuits-body"></div></div>
+      </section>
+
+      <!-- HISTORY -->
+      <section class="panel" data-panel="history">
+        <div class="card"><h2>Model Performance (Backtest)</h2><div id="backtest-body"></div></div>
+        <div class="card"><h2>Prediction vs Actual</h2><div id="history-body"></div></div>
+      </section>
+
+      <!-- MODEL -->
+      <section class="panel" data-panel="model">
+        <div class="card"><h2>Model</h2><div id="model-body"></div></div>
+      </section>
+
+      <footer>
+        Baseline gradient‑boosting model · <span id="freshness-note">—</span> · Predictions are uncertain estimates, not guaranteed outcomes.
+      </footer>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // ---- Intro -> App transition ----
+  var intro = document.getElementById('intro');
+  var app = document.getElementById('app');
+  var btn = document.getElementById('get-started');
+  var introVideo = document.querySelector('.intro-video');
+
+  // Belt-and-suspenders: explicitly (re)start playback. If autoplay was
+  // silently blocked, some browsers show a native "paused" play-button
+  // overlay that can look like video controls — forcing play() here
+  // avoids that without changing anything about the video itself.
+  if (introVideo) {
+    introVideo.muted = true;
+    var playPromise = introVideo.play();
+    if (playPromise && playPromise.catch) { playPromise.catch(function(){}); }
+
+    // Actively enforce "no native controls" at runtime. The markup never
+    // has a controls attribute, but some mobile browsers/webviews add
+    // native controls dynamically once playback actually starts (as an
+    // autoplay-with-audio-track fallback) — a missing attribute in the
+    // source alone doesn't prevent that. This removes it the instant it
+    // ever appears, via every relevant lifecycle event plus a
+    // MutationObserver as a final catch-all, without touching anything
+    // else about the element.
+    var stripControls = function () {
+      introVideo.controls = false;
+      if (introVideo.hasAttribute('controls')) {
+        introVideo.removeAttribute('controls');
+      }
+    };
+    stripControls();
+    [
+      'loadedmetadata', 'loadeddata', 'canplay', 'canplaythrough',
+      'play', 'playing', 'pause', 'timeupdate', 'volumechange', 'seeked'
+    ].forEach(function (evt) {
+      introVideo.addEventListener(evt, stripControls);
+    });
+    if (window.MutationObserver) {
+      new MutationObserver(stripControls).observe(introVideo, {
+        attributes: true, attributeFilter: ['controls']
+      });
+    }
+  }
+
+  function enterApp(){
+    intro.classList.add('fade-out');
+    app.classList.remove('hidden-init');
+    requestAnimationFrame(function(){ app.classList.add('visible'); });
+    setTimeout(function(){ intro.style.display = 'none'; }, 850);
+  }
+  btn.addEventListener('click', enterApp);
+
+  // ---- Tab navigation ----
+  var tabs = document.querySelectorAll('.tab');
+  var panels = document.querySelectorAll('.panel');
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      tabs.forEach(function (x) { x.classList.remove('active'); });
+      panels.forEach(function (p) { p.classList.remove('active'); });
+      t.classList.add('active');
+      document.querySelector('.panel[data-panel="' + t.dataset.tab + '"]').classList.add('active');
+    });
+  });
+
+  // ========================================================================
+  // BACKEND DATA BRIDGE — now a real HTTP connection, not embedded JSON.
+  // ========================================================================
+  // The frontend fetch()es GET {API_BASE_URL}/api/prediction/next-race,
+  // served by scripts/serve_api.py, which calls the real backend
+  // functions directly (get_upcoming_race, predict_upcoming_race,
+  // load_model_bundle, etc. — see backend/src/app/api.py). This file
+  // still never invents prediction numbers and still never computes a
+  // prediction itself: it only fetches, normalizes (via the unchanged
+  // normalizePredictionData()), and renders.
+  //
+  // Response shape matches the actual backend's real output columns —
+  // see src/features/dataset.py build_feature_row, src/models/predict.py
+  // predict_upcoming_race, src/evaluation/backtest.py backtest_summary:
+  //
+  // {
+  //   dataFreshness: string, modelVersion: string,
+  //   fastf1Available, historicalDataLoaded, modelLoaded, predictionGenerated: bool,
+  //   nextRace: { name, circuit, date, cutoffNote, statusNote } | null,
+  //   predictions: [{ predicted_rank, driver, team, circuit,
+  //     qualifying_position, grid_position,
+  //     driver_form_3, driver_form_5, driver_quali_form_3, driver_quali_form_5,
+  //     driver_points_3, driver_points_5, driver_finish_rate_3, driver_finish_rate_5,
+  //     team_form_3, team_form_5, team_quali_form_3, team_quali_form_5,
+  //     team_points_3, team_points_5,
+  //     circuit_driver_avg_finish, circuit_driver_prior_starts,
+  //     circuit_team_avg_finish, circuit_team_prior_starts,
+  //     season_avg_finish, season_avg_quali, season_points, season_races_so_far,
+  //     pred_finish, win_prob }],
+  //   featureValues: [{feature, value}],  // real saved feature importance, not invented %
+  //   backtest: {overall: {...}, season_YYYY: {...}} | null,
+  //   history: [{race_id, driver, team, target_finish, pred_finish, win_prob}],
+  //   error: string | null
+  // }
+  //
+  // Change this if your backend API runs somewhere other than the default:
+  var API_BASE_URL = 'http://localhost:8787';
+
+  // ========================================================================
+  // TEAM / CAR ASSET REGISTRY (frontend presentation layer only — Part 12).
+  // This is NOT part of the ML feature schema. Keys are matched against
+  // whatever string the backend's `team` field contains (real FastF1
+  // TeamName values) via resolveTeamId()'s fuzzy match below, so it is
+  // robust to "Red Bull Racing" vs "Red Bull" vs "Oracle Red Bull Racing"
+  // etc. without requiring the backend to conform to these exact keys.
+  //
+  // IMPORTANT: no licensed team car photography is available in this
+  // environment, so EVERY team (not only unmatched ones) renders as the
+  // same original schematic silhouette, recolored per team and clearly
+  // captioned as schematic — never presented as an official team asset.
+  // ========================================================================
+  var TEAM_REGISTRY = {
+    red_bull:      { name: 'Red Bull Racing',  c1:'#1E2A4A', c2:'#E10600', c3:'#FFC700' },
+    ferrari:       { name: 'Scuderia Ferrari', c1:'#E8002D', c2:'#111111', c3:'#FFF200' },
+    mercedes:      { name: 'Mercedes-AMG',     c1:'#00A19C', c2:'#111111', c3:'#C0C0C0' },
+    mclaren:       { name: 'McLaren',          c1:'#FF8000', c2:'#111111', c3:'#47C7FC' },
+    aston_martin:  { name: 'Aston Martin',     c1:'#0B3D2E', c2:'#111111', c3:'#00D2BE' },
+    alpine:        { name: 'Alpine',           c1:'#0090FF', c2:'#111111', c3:'#FF1E90' },
+    williams:      { name: 'Williams',         c1:'#00A3E0', c2:'#111111', c3:'#ffffff' },
+    haas:          { name: 'Haas F1 Team',     c1:'#B6BABD', c2:'#E10600', c3:'#111111' },
+    racing_bulls:  { name: 'Racing Bulls',     c1:'#1B3A6B', c2:'#ffffff', c3:'#E10600' },
+    sauber:        { name: 'Kick Sauber',      c1:'#00E701', c2:'#111111', c3:'#ffffff' },
+    unknown:       { name: null,               c1:'#3a3d46', c2:'#22242b', c3:'#6b6f7a' },
+  };
+
+  function resolveTeamId(rawTeamName) {
+    if (!rawTeamName) return 'unknown';
+    var s = String(rawTeamName).toLowerCase();
+    var tests = [
+      ['red_bull', /red ?bull/], ['ferrari', /ferrari/], ['mercedes', /mercedes/],
+      ['mclaren', /mclaren/], ['aston_martin', /aston/], ['alpine', /alpine/],
+      ['williams', /williams/], ['haas', /haas/], ['racing_bulls', /racing bulls|rb\b|toro rosso|alphatauri/],
+      ['sauber', /sauber|audi/],
+    ];
+    for (var i = 0; i < tests.length; i++) {
+      if (tests[i][1].test(s)) return tests[i][0];
+    }
+    return 'unknown';
+  }
+
+  // Original schematic car silhouette (NOT a photo, NOT any team's real
+  // livery/logo) built from basic SVG primitives, recolored per team.
+  // This is the reusable <F1CarDisplay/> equivalent: one function, driven
+  // entirely by resolved team colors, with an explicit "schematic" label.
+  // Original F1-style single-seater side-profile silhouette (front wing,
+  // nose, halo/cockpit, sidepods, engine cover, rear wing on struts, two
+  // wheels with rims) — not tracing any real team's actual car design.
+  // Team identity is expressed only through color + name + (when known)
+  // the backend's own driver code, per the explicit instruction not to
+  // invent logos/numbers the backend doesn't provide.
+  var _carGlowCounter = 0;
+  function F1CarDisplay(rawTeamName, driverCode) {
+    var id = resolveTeamId(rawTeamName);
+    var t = TEAM_REGISTRY[id];
+    var label = t.name || (rawTeamName ? String(rawTeamName) : 'No team selected');
+    var gid = 'carglow' + (_carGlowCounter++);
+    var badge = driverCode
+      ? '<circle cx="245" cy="97" r="13" fill="' + t.c2 + '" stroke="' + t.c3 + '" stroke-width="1.5"/>' +
+        '<text x="245" y="101" font-size="10" font-weight="700" fill="#fff" text-anchor="middle" font-family="inherit">' + driverCode + '</text>'
+      : '';
+    var svg =
+      '<svg viewBox="0 0 420 150" width="100%" height="auto" style="max-width:520px" aria-hidden="true">' +
+        '<defs><radialGradient id="' + gid + '" cx="50%" cy="50%" r="50%">' +
+          '<stop offset="0%" stop-color="' + t.c1 + '" stop-opacity="0.45"/>' +
+          '<stop offset="100%" stop-color="' + t.c1 + '" stop-opacity="0"/>' +
+        '</radialGradient></defs>' +
+        '<ellipse cx="210" cy="122" rx="190" ry="16" fill="url(#' + gid + ')"/>' +
+        // rear wing (struts + plane + endplates)
+        '<rect x="330" y="70" width="4" height="24" fill="' + t.c2 + '"/>' +
+        '<rect x="345" y="70" width="4" height="24" fill="' + t.c2 + '"/>' +
+        '<rect x="320" y="54" width="5" height="18" fill="' + t.c3 + '"/>' +
+        '<rect x="358" y="54" width="5" height="18" fill="' + t.c3 + '"/>' +
+        '<rect x="322" y="58" width="40" height="8" rx="2" fill="' + t.c2 + '"/>' +
+        // floor/diffuser shadow
+        '<path d="M300,112 L340,112 L350,120 L295,120 Z" fill="#0c0d10" opacity="0.7"/>' +
+        // rear wheel
+        '<circle cx="348" cy="108" r="27" fill="#15161a"/>' +
+        '<circle cx="348" cy="108" r="13" fill="' + t.c3 + '"/>' +
+        '<circle cx="348" cy="108" r="3.5" fill="#111"/>' +
+        // engine cover / rear body taper
+        '<path d="M300,86 L320,84 L340,92 L340,105 L320,112 L300,100 Z" fill="' + t.c1 + '"/>' +
+        // sidepod / main body
+        '<path d="M175,99 L210,86 L300,86 L320,100 L320,112 L175,112 Z" fill="' + t.c1 + '"/>' +
+        '<path d="M215,90 L245,90 L240,100 L212,100 Z" fill="' + t.c2 + '" opacity="0.85"/>' +
+        '<rect x="175" y="100" width="145" height="5" fill="' + t.c3 + '" opacity="0.9"/>' +
+        badge +
+        // nose
+        '<path d="M90,107 L175,90 L175,99 L115,111 Z" fill="' + t.c1 + '"/>' +
+        // cockpit + halo
+        '<ellipse cx="192" cy="88" rx="16" ry="9" fill="#0c0d10" stroke="' + t.c2 + '" stroke-width="2"/>' +
+        '<path d="M178,88 C178,62 208,62 208,88" fill="none" stroke="' + t.c3 + '" stroke-width="5" stroke-linecap="round"/>' +
+        // front wing
+        '<path d="M8,116 L90,104 L90,110 L8,120 Z" fill="' + t.c2 + '"/>' +
+        '<rect x="4" y="98" width="6" height="24" rx="1" fill="' + t.c3 + '"/>' +
+        // front wheel
+        '<circle cx="68" cy="108" r="24" fill="#15161a"/>' +
+        '<circle cx="68" cy="108" r="11" fill="' + t.c3 + '"/>' +
+        '<circle cx="68" cy="108" r="3" fill="#111"/>' +
+      '</svg>';
+    return '<div class="car-wrap">' + svg +
+      '<div class="car-team-name">' + label + '</div>' +
+      '<div class="car-caption">Original F1-style illustration — not an official team asset</div>' +
+      '</div>';
+  }
+
+  // ========================================================================
+  // FRONTEND DATA ADAPTER (Part 13)
+  // Raw API response -> normalized view model (VM). Field-by-field
+  // mapping is documented inline; this is presentation-only and never
+  // alters what the backend computed.
+  // ========================================================================
+  function normalizePredictionData(data) {
+    if (!data) return null;
+    var predictions = data.predictions || [];                    // full field, one row per driver
+    var drivers = predictions.map(function (p) { return p.driver; });
+    var teams = [];
+    predictions.forEach(function (p) { if (teams.indexOf(p.team) === -1) teams.push(p.team); });
+    return {
+      dataFreshness: data.dataFreshness,                          // -> Data Status / footer
+      modelVersion: data.modelVersion,                            // -> Model tab
+      status: {                                                   // -> Data Status checklist
+        fastf1Available: !!data.fastf1Available,
+        historicalDataLoaded: !!data.historicalDataLoaded,
+        modelLoaded: !!data.modelLoaded,
+        predictionGenerated: !!data.predictionGenerated,
+      },
+      nextRace: data.nextRace || null,                            // -> Hero (race_id/name/circuit/date/cutoff)
+      predictions: predictions,                                   // -> Prediction grid + podium (predicted_rank, pred_finish, win_prob)
+      drivers: drivers,                                           // -> Driver select options (discovered, not hardcoded)
+      teams: teams,                                                // -> Team select options (discovered, not hardcoded)
+      featureValues: data.featureValues || [],                    // -> "Why the model predicts this" (raw values, not invented %)
+      backtest: data.backtest || null,                            // -> History tab
+      history: data.history || [],                                // -> Prediction-vs-actual table
+    };
+  }
+
+  // VM (the normalized view model) starts null and is set each time
+  // loadBackendData() resolves — see the bottom of this script.
+  var VM = null;
+
+  function emptyCard(msg) { return '<div class="empty">' + msg + '</div>'; }
+  var NOT_CONNECTED = 'Prediction is not available yet. Qualifying for the next race has not been completed. ' +
+  'Nothing here is fabricated.';
+
+  // ---- RACE PREDICTION: podium + full grid + factors ----
+  // Shared helpers (used by both the Drivers tab and the Race Prediction
+  // tab's Selected Driver Dashboard — see renderDriverInto below).
+  function dash(v, fmt) {
+    if (v === null || v === undefined) return '—';
+    return fmt ? fmt(v) : v;
+  }
+  function kv(label, value) {
+    return '<div class="kv"><span class="k">' + label + '</span><span>' + value + '</span></div>';
+  }
+
+  // ---- ONE reusable driver-dashboard renderer, mounted into TWO places ----
+  // (the Drivers tab's own panel, and the Race Prediction tab's Selected
+  // Driver Dashboard). Same data lookup, same F1CarDisplay call, same
+  // field formatting, every time — ids just say where to write the
+  // result, so there is exactly one implementation of "what a driver's
+  // dashboard looks like," per the explicit "no second car component"
+  // requirement.
+  function renderDriverInto(driverName, ids) {
+    var p = VM && VM.predictions.find(function (x) { return x.driver === driverName; });
+    var infoEl = document.getElementById(ids.info);
+    var carEl = document.getElementById(ids.car);
+    var perfEl = document.getElementById(ids.perf);
+
+    infoEl.innerHTML =
+      kv('Driver', dash(p && p.driver)) +
+      kv('Team', dash(p && p.team)) +
+      kv('Predicted finish', dash(p && p.predicted_rank, function (v) { return 'P' + v; })) +
+      kv('P1 probability', p && typeof p.win_prob === 'number' ? Math.round(p.win_prob * 100) + '%' : (p ? 'Not calibrated' : '—'));
+
+    carEl.innerHTML = F1CarDisplay(p ? p.team : null, p ? p.driver : null);
+    if (!p) carEl.innerHTML += '<div class="empty" style="margin-top:14px;">' + NOT_CONNECTED + '</div>';
+
+    perfEl.innerHTML =
+      kv('Avg finish (last 3)', dash(p && p.driver_form_3, function (v) { return v.toFixed(1); })) +
+      kv('Avg finish (last 5)', dash(p && p.driver_form_5, function (v) { return v.toFixed(1); })) +
+      kv('Avg quali (last 3)', dash(p && p.driver_quali_form_3, function (v) { return v.toFixed(1); })) +
+      kv('Points (last 3)', dash(p && p.driver_points_3)) +
+      kv('Finish rate (last 5)', dash(p && p.driver_finish_rate_5, function (v) { return Math.round(v * 100) + '%'; }));
+  }
+
+  var DRIVER_TAB_IDS = { info: 'driver-info', car: 'driver-car', perf: 'driver-perf' };
+  var PREDICT_TAB_IDS = { info: 'predict-driver-info', car: 'predict-driver-car', perf: 'predict-driver-perf' };
+  var driverSelect = document.getElementById('driver-select');
+
+  // Single source of truth for "which driver is selected" — updates
+  // BOTH mount points plus the Drivers-tab dropdown and the Prediction
+  // table's row highlight, so every view of driver selection always
+  // agrees, no matter which one triggered the change.
+  var selectedDriver = null;
+  function selectDriver(driverName, opts) {
+    selectedDriver = driverName;
+    renderDriverInto(driverName, DRIVER_TAB_IDS);
+    renderDriverInto(driverName, PREDICT_TAB_IDS);
+    if (driverName && driverSelect.querySelector('option[value="' + CSS.escape(driverName) + '"]')) {
+      driverSelect.value = driverName;
+    }
+    document.querySelectorAll('#prediction-grid-body tr[data-driver]').forEach(function (tr) {
+      var isSel = tr.getAttribute('data-driver') === driverName;
+      tr.classList.toggle('selected-row', isSel);
+      tr.querySelector('.sel-indicator').textContent = isSel ? '▸' : '';
+    });
+    if (opts && opts.scroll) {
+      document.getElementById('predict-driver-dashboard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  // ---- RACE PREDICTION tab: podium, full-field grid, model factors ----
+  function renderPrediction() {
+    var podiumEl = document.getElementById('podium-highlight');
+    var gridBody = document.getElementById('prediction-grid-body');
+    var factorsEl = document.getElementById('factors-body');
+    if (!VM || !VM.predictions.length) {
+      podiumEl.innerHTML = [1, 2, 3].map(function (n) {
+        return '<div class="p-card"><div class="p-pos">P' + n + '</div>' +
+          '<div class="p-driver">—</div><div class="p-team">No data</div>' +
+          '<div class="p-prob-l">PREDICTION NOT AVAILABLE YET</div></div>';
+      }).join('');
+      gridBody.innerHTML = '<tr><td colspan="8" class="empty" style="border:none;">' + NOT_CONNECTED + '</td></tr>';
+      factorsEl.innerHTML = emptyCard(NOT_CONNECTED);
+      selectDriver(null);
+      return;
+    }
+    var ranked = VM.predictions.slice().sort(function (a, b) { return a.predicted_rank - b.predicted_rank; });
+    podiumEl.innerHTML = ranked.slice(0, 3).map(function (p) {
+      return '<div class="p-card"><div class="p-pos">P' + p.predicted_rank + '</div>' +
+        '<div class="p-driver">' + p.driver + '</div><div class="p-team">' + p.team + '</div>' +
+        (typeof p.win_prob === 'number'
+          ? '<div class="p-prob">' + Math.round(p.win_prob * 100) + '%</div><div class="p-prob-l">P1 probability</div>'
+          : '<div class="p-prob-l">Win probability not calibrated</div>') + '</div>';
+    }).join('');
+    gridBody.innerHTML = ranked.map(function (p) {
+      return '<tr data-driver="' + p.driver + '" tabindex="0" role="button" aria-label="View dashboard for ' + p.driver + '">' +
+        '<td class="sel-indicator"></td>' +
+        '<td class="rank">' + p.predicted_rank + '</td><td>' + p.driver + '</td><td>' + p.team + '</td>' +
+        '<td>' + (p.qualifying_position != null ? 'P' + p.qualifying_position : '—') + '</td>' +
+        '<td>' + (p.driver_form_3 != null ? p.driver_form_3.toFixed(1) : '—') + '</td>' +
+        '<td>' + (p.circuit_driver_avg_finish != null ? p.circuit_driver_avg_finish.toFixed(1) : '—') + '</td>' +
+        '<td>' + (typeof p.win_prob === 'number' ? Math.round(p.win_prob * 100) + '%' : '—') + '</td></tr>';
+    }).join('');
+    gridBody.querySelectorAll('tr[data-driver]').forEach(function (tr) {
+      var d = tr.getAttribute('data-driver');
+      tr.addEventListener('click', function () { selectDriver(d, { scroll: true }); });
+      tr.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectDriver(d, { scroll: true }); }
+      });
+    });
+    if (VM.featureValues.length) {
+      factorsEl.innerHTML = VM.featureValues.map(function (f) {
+        return '<div class="kv"><span class="k">' + f.feature + '</span><span>' + f.value + '</span></div>';
+      }).join('');
+    } else {
+      factorsEl.innerHTML = emptyCard(NOT_CONNECTED);
+    }
+    // Default selection: the P1 predicted driver (Part "Default Selection").
+    selectDriver(ranked[0].driver);
+  }
+
+  var teamSelect = document.getElementById('team-select');
+  function renderTeam(teamName) {
+    var rows = VM ? VM.predictions.filter(function (x) { return x.team === teamName; }) : [];
+    var r0 = rows[0];
+    var infoEl = document.getElementById('team-info');
+    var carEl = document.getElementById('team-car');
+    var perfEl = document.getElementById('team-perf');
+
+    infoEl.innerHTML =
+      kv('Team', dash(teamName)) +
+      kv('Drivers', rows.length ? rows.map(function (r) { return r.driver; }).join(', ') : '—');
+
+    carEl.innerHTML = F1CarDisplay(teamName);
+    if (!r0) carEl.innerHTML += '<div class="empty" style="margin-top:14px;">' + NOT_CONNECTED + '</div>';
+
+    perfEl.innerHTML =
+      kv('Avg finish (last 3)', dash(r0 && r0.team_form_3, function (v) { return v.toFixed(1); })) +
+      kv('Avg finish (last 5)', dash(r0 && r0.team_form_5, function (v) { return v.toFixed(1); })) +
+      kv('Avg quali', dash(r0 && r0.team_quali_form_3, function (v) { return v.toFixed(1); })) +
+      kv('Points (last 3)', dash(r0 && r0.team_points_3));
+  }
+
+  // Re-attaching a listener to a persistent element (the dropdowns, the
+  // view-prediction button) every time renderApp() runs would stack
+  // duplicate handlers. clone+replace is the standard vanilla-JS way to
+  // guarantee exactly one listener no matter how many times this runs
+  // (fetch success, a later retry, etc.) without a separate "has this
+  // been wired yet" flag to keep in sync.
+  function wireFresh(el, event, handler) {
+    var fresh = el.cloneNode(true);
+    el.parentNode.replaceChild(fresh, el);
+    fresh.addEventListener(event, handler);
+    return fresh;
+  }
+
+  // ---- The single "paint everything from the current VM" pass. Safe to
+  // call repeatedly (initial honest-empty paint, then again whenever
+  // loadBackendData() resolves, including after a manual Retry). ----
+  function renderApp() {
+    document.getElementById('status-pill').textContent =
+      VM ? 'Data as of ' + VM.dataFreshness : 'Backend not connected';
+    var checks = [
+      ['FastF1 data available', VM && VM.status.fastf1Available],
+      ['Historical data loaded', VM && VM.status.historicalDataLoaded],
+      ['Model loaded', VM && VM.status.modelLoaded],
+      ['Prediction generated', VM && VM.status.predictionGenerated],
+    ];
+    document.getElementById('data-status').innerHTML = checks.map(function (c) {
+      return '<div class="status-row"><span class="status-dot ' + (c[1] ? 'ok' : 'fail') + '"></span>' +
+        c[0] + ': ' + (c[1] ? 'OK' : 'Not available') + '</div>';
+    }).join('');
+    document.getElementById('freshness-note').textContent = VM ? VM.dataFreshness : 'no backend data connected yet';
+
+    if (VM && VM.nextRace) {
+      document.getElementById('race-name').textContent = VM.nextRace.name;
+      document.getElementById('race-circuit').textContent = VM.nextRace.circuit;
+      document.getElementById('race-date').textContent = VM.nextRace.date;
+      document.getElementById('cutoff-note').textContent = 'Prediction cutoff: ' + VM.nextRace.cutoffNote;
+      document.getElementById('race-status-note').textContent = VM.nextRace.statusNote || '';
+    } else {
+      document.getElementById('race-name').textContent = 'No upcoming race identified';
+      document.getElementById('race-circuit').textContent = '—';
+      document.getElementById('race-date').textContent = '—';
+      document.getElementById('cutoff-note').textContent = NOT_CONNECTED;
+      document.getElementById('race-status-note').textContent = '';
+    }
+    wireFresh(document.getElementById('view-prediction-btn'), 'click', function () {
+      document.querySelector('.tab[data-tab="predict"]').click();
+      document.querySelector('.wrap').scrollIntoView({ behavior: 'smooth' });
+    });
+
+    renderPrediction(); // also performs the initial (P1 or null) selectDriver() call
+
+    if (VM && VM.drivers.length) {
+      driverSelect.innerHTML = VM.drivers.map(function (d) { return '<option value="' + d + '">' + d + '</option>'; }).join('');
+      driverSelect.disabled = false;
+      driverSelect = wireFresh(driverSelect, 'change', function () { selectDriver(this.value); });
+    } else {
+      driverSelect.innerHTML = '<option>No drivers available</option>';
+      driverSelect.disabled = true;
+    }
+
+    if (VM && VM.teams.length) {
+      teamSelect.innerHTML = VM.teams.map(function (t) { return '<option value="' + t + '">' + t + '</option>'; }).join('');
+      teamSelect.disabled = false;
+      teamSelect = wireFresh(teamSelect, 'change', function () { renderTeam(this.value); });
+      renderTeam(VM.teams[0]);
+    } else {
+      teamSelect.innerHTML = '<option>No teams available</option>';
+      teamSelect.disabled = true;
+      renderTeam(null);
+    }
+
+    document.getElementById('circuits-body').innerHTML =
+      '<div class="table-scroll"><table><thead><tr><th>Driver</th><th>Team</th><th>Driver avg finish here</th><th>Team avg finish here</th></tr></thead><tbody>' +
+      ((VM && VM.predictions.length)
+        ? VM.predictions.map(function (p) {
+            return '<tr><td>' + p.driver + '</td><td>' + p.team + '</td>' +
+              '<td>' + dash(p.circuit_driver_avg_finish, function (v) { return v.toFixed(1); }) + '</td>' +
+              '<td>' + dash(p.circuit_team_avg_finish, function (v) { return v.toFixed(1); }) + '</td></tr>';
+          }).join('')
+        : '<tr><td colspan="4" class="empty" style="border:none;">' + NOT_CONNECTED + '</td></tr>') +
+      '</tbody></table></div>';
+
+    var bt = VM && VM.backtest && VM.backtest.overall;
+    document.getElementById('backtest-body').innerHTML =
+      '<div class="grid3">' +
+        '<div class="stat"><div class="n">' + dash(bt && bt.mae, function (v) { return v.toFixed(2); }) + '</div><div class="l">MAE (positions)</div></div>' +
+        '<div class="stat"><div class="n">' + dash(bt && bt.rank_correlation, function (v) { return v.toFixed(2); }) + '</div><div class="l">Rank correlation</div></div>' +
+        '<div class="stat"><div class="n">' + dash(bt && bt.top1_agreement, function (v) { return Math.round(v * 100) + '%'; }) + '</div><div class="l">Top‑1 agreement</div></div>' +
+      '</div>' +
+      (bt ? '' : '<div class="empty" style="margin-top:14px;">' + NOT_CONNECTED + '</div>');
+
+    document.getElementById('history-body').innerHTML =
+      '<div class="table-scroll"><table><thead><tr><th>Race</th><th>Driver</th><th>Predicted</th><th>Actual</th></tr></thead><tbody>' +
+      ((VM && VM.history.length)
+        ? VM.history.map(function (h) {
+            return '<tr><td>' + h.race_id + '</td><td>' + h.driver + '</td><td>P' + h.pred_finish.toFixed(1) + '</td><td>P' + h.target_finish + '</td></tr>';
+          }).join('')
+        : '<tr><td colspan="4" class="empty" style="border:none;">' + NOT_CONNECTED + '</td></tr>') +
+      '</tbody></table></div>';
+
+    document.getElementById('model-body').innerHTML =
+      kv('Model version', dash(VM && VM.modelVersion)) +
+      kv('Data freshness', dash(VM && VM.dataFreshness)) +
+      kv('Model loaded', VM ? (VM.status.modelLoaded ? 'Yes' : 'No') : '—');
+  }
+
+  // ---- Connection banner (loading / error states — Parts 13/14) ----
+  var connBanner = document.getElementById('conn-banner');
+  function showLoading() {
+    connBanner.hidden = false;
+    connBanner.className = 'conn-banner';
+    connBanner.textContent = 'Loading race prediction…';
+  }
+  function showError(message) {
+    connBanner.hidden = false;
+    connBanner.className = 'conn-banner error';
+    connBanner.innerHTML =
+      '<strong>BACKEND CONNECTION ERROR</strong><br>' +
+      'Unable to retrieve prediction data from ' + API_BASE_URL + '. Check that the backend is running ' +
+      '(python scripts/serve_api.py).<br><span style="opacity:.75">' + message + '</span><br>' +
+      '<button id="retry-btn">RETRY</button>';
+    document.getElementById('retry-btn').addEventListener('click', loadBackendData);
+  }
+  function hideBanner() { connBanner.hidden = true; }
+
+  // ---- Fetch real backend data, normalize via the UNCHANGED adapter,
+  // render. Never falls back to fake data on failure — VM stays null and
+  // renderApp() shows the same honest empty state it always has, with
+  // the banner explaining why. ----
+  function loadBackendData() {
+    showLoading();
+    fetch(API_BASE_URL + '/api/prediction/next-race')
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        VM = normalizePredictionData(data);
+        hideBanner();
+        renderApp();
+      })
+      .catch(function (err) {
+        VM = null;
+        renderApp();
+        showError(err.message);
+      });
+  }
+
+  renderApp();       // immediate honest-empty paint, no blank page while loading
+  loadBackendData();
+})();
+</script>
+</body>
+</html>
