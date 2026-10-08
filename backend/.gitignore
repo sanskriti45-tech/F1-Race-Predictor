@@ -1,4 +1,4 @@
-__pycache__/
+___pycache__/
 *.pyc
 .venv/
 .env
@@ -8,8 +8,10 @@ data/processed/*
 !data/cache/.gitkeep
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/processed/races.csv
 models/*
 !models/.gitkeep
+!models/baseline_gbm.joblib
 reports/*
 !reports/.gitkeep
 .pytest_cache/

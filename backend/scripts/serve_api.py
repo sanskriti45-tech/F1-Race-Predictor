@@ -11,7 +11,7 @@ have been run first for /api/prediction/next-race to return populated
 data; otherwise it honestly reports what's missing (see api.py).
 """
 from __future__ import annotations
-
+import os
 import argparse
 import sys
 from http.server import HTTPServer
@@ -24,21 +24,33 @@ logger = get_logger(__name__)
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Serve the F1 prediction API")
-    parser.add_argument("--port", type=int, default=8787)
-    parser.add_argument("--host", default="localhost")
+    parser.add_argument("--port", type=int, default=None)
+    parser.add_argument("--host", default=None)
     args = parser.parse_args(argv)
 
-    server = HTTPServer((args.host, args.port), ApiHandler)
-    url = f"http://{args.host}:{args.port}"
+    # Render provides PORT as an environment variable.
+    # Keep local development working with the existing defaults.
+    port = args.port or int(os.environ.get("PORT", "8787"))
+    host = args.host or os.environ.get("HOST", "0.0.0.0")
+
+    server = HTTPServer((host, port), ApiHandler)
+
+    # Use localhost in the displayed URL only for local development.
+    display_host = "localhost" if host == "0.0.0.0" else host
+    url = f"http://{display_host}:{port}"
+
     print(f"F1 Prediction API running at {url}")
     print(f"  GET {url}/api/health")
     print(f"  GET {url}/api/prediction/next-race")
     print("Press Ctrl+C to stop.")
-    logger.info("Serving on %s", url)
+
+    logger.info("Serving on %s:%s", host, port)
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print("\nStopped.")
+
     return 0
 
 
