@@ -1,4 +1,3 @@
-````markdown
 # 🏎️ F1 Race Predictor
 
 > A machine-learning powered Formula 1 race prediction platform that uses historical race data, qualifying performance, driver and team form, circuit statistics, and season performance to predict upcoming race outcomes.
